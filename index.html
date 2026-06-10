@@ -1,0 +1,867 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Control de Negocio</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <section class="login-screen" id="loginScreen">
+      <div class="login-card">
+        <div class="brand-mark" aria-hidden="true">CN</div>
+        <div>
+          <p class="eyebrow">Acceso empresarial</p>
+          <h1>Control de Negocio</h1>
+        </div>
+        <label>
+          Empresa
+          <select id="companySelect"></select>
+        </label>
+        <label>
+          Contraseña
+          <input id="companyPassword" type="password" placeholder="Contraseña" />
+        </label>
+        <label>
+          Email nube
+          <input id="companyEmail" type="email" placeholder="Opcional si usás Supabase" />
+        </label>
+        <button class="primary-button" id="loginCompany" type="button">Ingresar</button>
+        <p class="helper-text">Demo inicial: empresa “Mi Negocio”, contraseña “1234”.</p>
+        <div class="login-divider"></div>
+        <h3>Crear empresa</h3>
+        <label>
+          Nombre
+          <input id="newCompanyName" type="text" placeholder="Nombre de la empresa" />
+        </label>
+        <label>
+          Contraseña
+          <input id="newCompanyPassword" type="password" placeholder="Nueva contraseña" />
+        </label>
+        <label>
+          Email nube
+          <input id="newCompanyEmail" type="email" placeholder="Opcional si usás Supabase" />
+        </label>
+        <button class="ghost-button" id="createCompany" type="button">Crear y entrar</button>
+      </div>
+    </section>
+
+    <aside class="sidebar app-protected" hidden>
+      <div class="brand-block">
+        <div class="brand-mark" aria-hidden="true">CN</div>
+        <div>
+          <p class="eyebrow">ERP simple</p>
+          <h1>Control de Negocio</h1>
+        </div>
+      </div>
+      <div class="session-card">
+        <span>Empresa</span>
+        <strong id="activeCompanyName">Sin empresa</strong>
+      </div>
+      <div class="session-card" id="cloudStatus">
+        <span>Modo local</span>
+        <strong>Sin Supabase configurado</strong>
+      </div>
+      <nav class="nav" aria-label="Secciones">
+        <button class="nav-button active" data-view="dashboard">Dashboard</button>
+        <button class="nav-button" data-view="financiero">Finanzas</button>
+        <button class="nav-button" data-view="rentabilidad">Rentabilidad</button>
+        <button class="nav-button" data-view="venta">Nueva venta</button>
+        <button class="nav-button" data-view="reposicion">Reposición</button>
+        <button class="nav-button" data-view="productos">Productos</button>
+        <button class="nav-button" data-view="gastos">Gastos</button>
+        <button class="nav-button" data-view="caja">Caja</button>
+        <button class="nav-button" data-view="movimientos">Movimientos</button>
+      </nav>
+      <button class="secondary-button" id="logoutCompany" type="button">Cambiar empresa</button>
+      <button class="secondary-button" id="resetData" type="button">Restaurar demo</button>
+    </aside>
+
+    <main class="app-shell app-protected" hidden>
+      <section class="view active" id="dashboard">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Estado actual</p>
+            <h2>Dashboard operativo</h2>
+          </div>
+          <span class="status-pill" id="businessStatus">Calculando</span>
+        </header>
+
+        <div class="metrics-grid">
+          <article class="metric-card">
+            <span>Ventas totales</span>
+            <strong id="metricRevenue">$0</strong>
+          </article>
+          <article class="metric-card">
+            <span>Ventas registradas</span>
+            <strong id="metricMargin">$0</strong>
+          </article>
+          <article class="metric-card">
+            <span>Productos a reponer</span>
+            <strong id="metricAlerts">0</strong>
+          </article>
+          <article class="metric-card">
+            <span>Valor inventario</span>
+            <strong id="metricInventory">$0</strong>
+          </article>
+        </div>
+
+        <div class="metrics-grid">
+          <article class="metric-card compact">
+            <span>Unidades vendidas</span>
+            <strong id="metricExpenses">$0</strong>
+          </article>
+          <article class="metric-card compact">
+            <span>Reposición sugerida</span>
+            <strong id="metricNetProfit">$0</strong>
+          </article>
+          <article class="metric-card compact">
+            <span>Stock crítico</span>
+            <strong id="metricDebt">$0</strong>
+          </article>
+          <article class="metric-card compact">
+            <span>Órdenes pendientes</span>
+            <strong id="metricPendingOrders">0</strong>
+          </article>
+        </div>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h3>Filtro por fechas</h3>
+            <button class="ghost-button" id="clearFilters" type="button">Limpiar filtro</button>
+          </div>
+          <div class="filter-grid">
+            <label>
+              Desde
+              <input id="filterFrom" type="date" />
+            </label>
+            <label>
+              Hasta
+              <input id="filterTo" type="date" />
+            </label>
+            <button class="primary-button" id="applyFilters" type="button">Aplicar filtro</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h3>Exportar Excel</h3>
+            <span>Inventario, ventas o reposiciones</span>
+          </div>
+          <div class="filter-grid">
+            <label>
+              Informe
+              <select id="excelType">
+                <option value="inventory">Inventario</option>
+                <option value="sales">Ventas</option>
+                <option value="purchases">Reposiciones</option>
+                <option value="expenses">Gastos</option>
+                <option value="cash">Caja diaria</option>
+                <option value="summary">Resumen completo</option>
+              </select>
+            </label>
+            <label>
+              Desde
+              <input id="excelFrom" type="date" />
+            </label>
+            <label>
+              Hasta
+              <input id="excelTo" type="date" />
+            </label>
+            <button class="primary-button" id="exportExcel" type="button">Crear Excel</button>
+          </div>
+          <div class="export-result" id="exportResult" hidden></div>
+        </section>
+
+        <div class="metrics-grid">
+          <article class="metric-card compact">
+            <span>Ingresos caja</span>
+            <strong id="metricCashIn">$0</strong>
+          </article>
+          <article class="metric-card compact">
+            <span>Egresos caja</span>
+            <strong id="metricCashOut">$0</strong>
+          </article>
+          <article class="metric-card compact">
+            <span>Saldo caja</span>
+            <strong id="metricCashBalance">$0</strong>
+          </article>
+          <article class="metric-card compact">
+            <span>Comprobantes emitidos</span>
+            <strong id="metricCustomers">0</strong>
+          </article>
+        </div>
+
+        <div class="split-grid">
+          <section class="panel">
+            <div class="panel-header">
+              <h3>Métodos de pago</h3>
+              <span id="paymentMethodCount">0 métodos</span>
+            </div>
+            <div class="table-wrap">
+              <table class="compact-table">
+                <thead>
+                  <tr>
+                    <th>Método</th>
+                    <th>Ventas</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody id="paymentMethodsTable"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h3>Clientes con deuda</h3>
+              <span id="debtCustomerCount">0 clientes</span>
+            </div>
+            <div class="table-wrap">
+              <table class="compact-table">
+                <thead>
+                  <tr>
+                    <th>Cliente</th>
+                    <th>Deuda</th>
+                    <th>Ventas</th>
+                    <th>Desde</th>
+                  </tr>
+                </thead>
+                <tbody id="debtsTable"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h3>Alertas de reposición</h3>
+            <span id="alertCount">0 alertas</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Stock</th>
+                  <th>Mínimo</th>
+                  <th>Prioridad</th>
+                  <th>Comprar</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="alertsTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <div class="split-grid">
+          <section class="panel">
+            <div class="panel-header">
+              <h3>Productos más vendidos</h3>
+              <span id="rankingCount">0 ventas</span>
+            </div>
+            <div class="table-wrap">
+              <table class="compact-table">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Unidades</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody id="topProductsTable"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h3>Resumen operativo</h3>
+              <span id="customerCount">Sin duplicar finanzas</span>
+            </div>
+            <div class="insight-list" id="operationalSummary"></div>
+          </section>
+        </div>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h3>Inventario</h3>
+            <span id="productCount">0 productos</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Stock</th>
+                  <th>Mínimo</th>
+                  <th>Precio</th>
+                  <th>Ganancia %</th>
+                </tr>
+              </thead>
+              <tbody id="stockTable"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="financiero">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Flujo de dinero</p>
+            <h2>Dashboard financiero</h2>
+          </div>
+          <span class="status-pill" id="financeStatus">Calculando</span>
+        </header>
+
+        <div class="metrics-grid">
+          <article class="metric-card">
+            <span>Ingreso proyectado</span>
+            <strong id="financeProjectedIncome">$0</strong>
+          </article>
+          <article class="metric-card">
+            <span>Caja proyectada</span>
+            <strong id="financeProjectedCash">$0</strong>
+          </article>
+          <article class="metric-card">
+            <span>Promedio diario vendido</span>
+            <strong id="financeDailyAverage">$0</strong>
+          </article>
+          <article class="metric-card">
+            <span>Riesgo por deuda</span>
+            <strong id="financeDebtRisk">$0</strong>
+          </article>
+        </div>
+
+        <div class="split-grid">
+          <section class="panel">
+            <div class="panel-header">
+              <h3>Ventas, cobros y gastos</h3>
+              <span id="financeChartTotal">$0</span>
+            </div>
+            <div class="chart-bars finance-chart" id="financeCashChart"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h3>Proyección de caja</h3>
+              <div class="toolbar">
+                <label class="inline-control">
+                  Días
+                  <input id="projectionDays" type="number" min="7" max="365" step="1" value="30" />
+                </label>
+                <span id="projectionDaysLabel">Próximos 30 días</span>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="compact-table">
+                <thead>
+                  <tr>
+                    <th>Concepto</th>
+                    <th>Monto</th>
+                  </tr>
+                </thead>
+                <tbody id="financeProjectionTable"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h3>Evaluación financiera</h3>
+            <span>Acciones sugeridas</span>
+          </div>
+          <div class="insight-list" id="financeInsights"></div>
+        </section>
+      </section>
+
+      <section class="view" id="rentabilidad">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Precio, margen y utilidad</p>
+            <h2>Dashboard económico y rentabilidad</h2>
+          </div>
+          <span class="status-pill" id="profitStatus">Calculando</span>
+        </header>
+
+        <div class="metrics-grid">
+          <article class="metric-card">
+            <span>Ganancia bruta</span>
+            <strong id="profitGrossRate">$0</strong>
+          </article>
+          <article class="metric-card">
+            <span>Utilidad neta</span>
+            <strong id="profitNetAmount">$0</strong>
+          </article>
+          <article class="metric-card">
+            <span>Punto de equilibrio</span>
+            <strong id="profitBreakEven">$0</strong>
+          </article>
+          <article class="metric-card">
+            <span>Venta diaria necesaria</span>
+            <strong id="profitDailyTarget">$0</strong>
+          </article>
+        </div>
+
+        <div class="split-grid">
+          <section class="panel">
+            <div class="panel-header">
+              <h3>Margen por producto</h3>
+              <span id="profitProductCount">0 productos</span>
+            </div>
+            <div class="chart-bars finance-chart" id="profitMarginChart"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h3>Productos a corregir</h3>
+              <span>Precio, costo o volumen</span>
+            </div>
+            <div class="table-wrap">
+              <table class="compact-table">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Margen</th>
+                    <th>Sugerencia</th>
+                  </tr>
+                </thead>
+                <tbody id="profitActionsTable"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h3>Chat asesor IA</h3>
+            <span>Finanzas, rentabilidad y control del negocio</span>
+          </div>
+          <div class="advisor-chat" id="advisorChat">
+            <div class="chat-message assistant-message">
+              Soy tu asesor financiero local y gratuito. Puedo analizar objetivos, gastos, precios, caja, deuda, stock y rentabilidad usando los datos cargados, sin API paga.
+            </div>
+          </div>
+          <form class="advisor-form" id="advisorForm">
+            <input id="advisorQuestion" type="text" placeholder="Ej: ¿Me conviene gastar 500 en publicidad este mes?" required />
+            <button class="primary-button" type="submit">Consultar</button>
+          </form>
+          <div class="quick-prompts">
+            <button class="ghost-button" data-question="¿Cómo puedo mejorar la utilidad neta?" type="button">Mejorar utilidad</button>
+            <button class="ghost-button" data-question="¿Cuánto debería vender para cubrir mis gastos?" type="button">Cubrir gastos</button>
+            <button class="ghost-button" data-question="¿Me conviene gastar en publicidad ahora?" type="button">Evaluar gasto</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="venta">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Operación diaria</p>
+            <h2>Registrar venta</h2>
+          </div>
+        </header>
+
+        <form class="form-grid panel" id="saleForm">
+          <input id="saleId" name="id" type="hidden" />
+          <label>
+            Fecha
+            <input id="saleDate" name="date" type="date" required />
+          </label>
+          <label>
+            Comprobante
+            <input id="saleReceipt" name="receipt" type="text" placeholder="F-0011" required />
+          </label>
+          <label>
+            Cliente
+            <input id="saleCustomer" name="customer" type="text" placeholder="Mostrador" required />
+          </label>
+          <label>
+            Producto
+            <select id="saleSku" name="sku" required></select>
+          </label>
+          <label>
+            Cantidad
+            <input id="saleQuantity" name="quantity" type="number" min="1" step="1" required />
+          </label>
+          <label>
+            Descuento %
+            <input id="saleDiscount" name="discount" type="number" min="0" max="100" step="1" value="0" />
+          </label>
+          <label>
+            Método de pago
+            <select id="salePaymentMethod" name="paymentMethod">
+              <option value="Efectivo">Efectivo</option>
+              <option value="Tarjeta">Tarjeta</option>
+              <option value="Transferencia">Transferencia</option>
+              <option value="Mercado Pago">Mercado Pago</option>
+            </select>
+          </label>
+          <label>
+            Estado de pago
+            <select id="salePaymentStatus" name="paymentStatus">
+              <option value="Pagada">Pagada</option>
+              <option value="Pendiente">Pendiente</option>
+              <option value="Parcial">Parcial</option>
+            </select>
+          </label>
+          <label>
+            Monto cobrado
+            <input id="salePaidAmount" name="paidAmount" type="number" min="0" step="0.01" placeholder="Si queda vacío, usa el total" />
+          </label>
+          <label>
+            Vencimiento
+            <input id="saleDueDate" name="dueDate" type="date" />
+          </label>
+          <div class="form-actions">
+            <button class="primary-button" id="saleSubmit" type="submit">Guardar venta</button>
+            <button class="ghost-button" id="cancelSaleEdit" type="button" hidden>Cancelar edición</button>
+          </div>
+        </form>
+
+        <section class="panel result-panel" id="saleResult" hidden></section>
+      </section>
+
+      <section class="view" id="reposicion">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Compras</p>
+            <h2>Registrar reposición</h2>
+          </div>
+        </header>
+
+        <form class="form-grid panel" id="purchaseForm">
+          <input id="purchaseId" name="id" type="hidden" />
+          <label>
+            Fecha
+            <input id="purchaseDate" name="date" type="date" required />
+          </label>
+          <label>
+            Orden de compra
+            <input id="purchaseOrder" name="order" type="text" placeholder="OC-0012" required />
+          </label>
+          <label>
+            Producto
+            <select id="purchaseSku" name="sku" required></select>
+          </label>
+          <label>
+            Cantidad pedida/recibida
+            <input id="purchaseQuantity" name="quantity" type="number" min="1" step="1" required />
+          </label>
+          <label>
+            Costo unitario pagado
+            <input id="purchaseCost" name="cost" type="number" min="0" step="0.01" placeholder="Lo que pagaste por unidad" required />
+          </label>
+          <label>
+            Nota
+            <input id="purchaseNote" name="note" type="text" placeholder="Proveedor, factura o comentario" />
+          </label>
+          <label>
+            Proveedor
+            <input id="purchaseSupplier" name="supplier" type="text" placeholder="Proveedor" />
+          </label>
+          <label>
+            Estado de orden
+            <select id="purchaseStatus" name="status">
+              <option value="Recibida">Recibida</option>
+              <option value="Pendiente">Pendiente</option>
+              <option value="Vencida">Vencida</option>
+            </select>
+          </label>
+          <label>
+            Vencimiento
+            <input id="purchaseDueDate" name="dueDate" type="date" />
+          </label>
+          <div class="form-actions">
+            <button class="primary-button" id="purchaseSubmit" type="submit">Guardar reposición</button>
+            <button class="ghost-button" id="cancelPurchaseEdit" type="button" hidden>Cancelar edición</button>
+          </div>
+        </form>
+
+        <section class="panel result-panel" id="purchaseResult" hidden></section>
+      </section>
+
+      <section class="view" id="productos">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Catálogo</p>
+            <h2>Productos</h2>
+          </div>
+        </header>
+
+        <form class="form-grid panel" id="productForm">
+          <input id="editingProductSku" name="editingSku" type="hidden" />
+          <label>
+            Producto
+            <input id="productName" name="name" type="text" placeholder="Producto" required />
+          </label>
+          <label>
+            Costo de compra
+            <input id="productCost" name="cost" type="number" min="0" step="0.01" placeholder="Lo que te cuesta comprarlo" required />
+          </label>
+          <label>
+            Precio
+            <input id="productPrice" name="price" type="number" min="0" step="0.01" required />
+          </label>
+          <label>
+            Stock inicial
+            <input id="productStock" name="stock" type="number" min="0" step="1" required />
+          </label>
+          <label>
+            Punto reposición
+            <input id="productMin" name="minStock" type="number" min="0" step="1" required />
+          </label>
+          <label>
+            Stock ideal
+            <input id="productIdeal" name="idealStock" type="number" min="0" step="1" required />
+          </label>
+          <label>
+            Proveedor
+            <input id="productSupplier" name="supplier" type="text" placeholder="Proveedor" required />
+          </label>
+          <div class="form-actions">
+            <button class="primary-button" id="productSubmit" type="submit">Guardar producto</button>
+            <button class="ghost-button" id="cancelProductEdit" type="button" hidden>Cancelar edición</button>
+          </div>
+        </form>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h3>Lista de productos</h3>
+            <div class="toolbar">
+              <input id="productSearch" type="search" placeholder="Buscar producto o proveedor" />
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Stock</th>
+                  <th>Mínimo</th>
+                  <th>Precio</th>
+                  <th>Proveedor</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="productsTable"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="gastos">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Rentabilidad</p>
+            <h2>Gastos</h2>
+          </div>
+        </header>
+
+        <form class="form-grid panel" id="expenseForm">
+          <input id="expenseId" name="id" type="hidden" />
+          <label>
+            Fecha
+            <input id="expenseDate" name="date" type="date" required />
+          </label>
+          <label>
+            Categoría
+            <select id="expenseCategory" name="category">
+              <option value="Alquiler">Alquiler</option>
+              <option value="Sueldos">Sueldos</option>
+              <option value="Publicidad">Publicidad</option>
+              <option value="Envíos">Envíos</option>
+              <option value="Comisiones">Comisiones</option>
+              <option value="Servicios">Servicios</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </label>
+          <label>
+            Tipo
+            <select id="expenseType" name="type">
+              <option value="Fijo">Fijo</option>
+              <option value="Variable">Variable</option>
+            </select>
+          </label>
+          <label>
+            Descripción
+            <input id="expenseDescription" name="description" type="text" placeholder="Detalle del gasto" required />
+          </label>
+          <label>
+            Monto
+            <input id="expenseAmount" name="amount" type="number" min="0" step="0.01" required />
+          </label>
+          <label>
+            Método de pago
+            <select id="expensePaymentMethod" name="paymentMethod">
+              <option value="Efectivo">Efectivo</option>
+              <option value="Tarjeta">Tarjeta</option>
+              <option value="Transferencia">Transferencia</option>
+              <option value="Mercado Pago">Mercado Pago</option>
+            </select>
+          </label>
+          <div class="form-actions">
+            <button class="primary-button" id="expenseSubmit" type="submit">Guardar gasto</button>
+            <button class="ghost-button" id="cancelExpenseEdit" type="button" hidden>Cancelar edición</button>
+          </div>
+        </form>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h3>Listado de gastos</h3>
+            <span id="expenseCount">0 gastos</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Categoría</th>
+                  <th>Tipo</th>
+                  <th>Descripción</th>
+                  <th>Monto</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="expensesTable"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="caja">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Control diario</p>
+            <h2>Caja diaria</h2>
+          </div>
+        </header>
+
+        <form class="form-grid panel" id="cashForm">
+          <input id="cashId" name="id" type="hidden" />
+          <label>
+            Fecha
+            <input id="cashDate" name="date" type="date" required />
+          </label>
+          <label>
+            Apertura
+            <input id="cashOpening" name="opening" type="number" min="0" step="0.01" required />
+          </label>
+          <label>
+            Cierre real
+            <input id="cashClosing" name="closing" type="number" min="0" step="0.01" required />
+          </label>
+          <label>
+            Nota
+            <input id="cashNote" name="note" type="text" placeholder="Observaciones" />
+          </label>
+          <div class="form-actions">
+            <button class="primary-button" id="cashSubmit" type="submit">Guardar cierre</button>
+            <button class="ghost-button" id="cancelCashEdit" type="button" hidden>Cancelar edición</button>
+          </div>
+        </form>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h3>Cierres de caja</h3>
+            <span id="cashCount">0 cierres</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Apertura</th>
+                  <th>Ingresos</th>
+                  <th>Egresos</th>
+                  <th>Cierre esperado</th>
+                  <th>Cierre real</th>
+                  <th>Diferencia</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="cashTable"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="movimientos">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Historial</p>
+            <h2>Movimientos</h2>
+          </div>
+        </header>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h3>Últimas ventas</h3>
+            <div class="toolbar">
+              <input id="movementSearch" type="search" placeholder="Buscar venta, cliente o producto" />
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Comprobante</th>
+                  <th>Cliente</th>
+                  <th>Producto</th>
+	                  <th>Cantidad</th>
+	                  <th>Total</th>
+	                  <th>Pago</th>
+	                  <th>Debe</th>
+	                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="salesTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel receipt-panel" id="receiptPanel" hidden>
+          <div class="panel-header">
+            <h3>Comprobante</h3>
+	            <div class="toolbar">
+	              <button class="ghost-button" id="printReceipt" type="button">Imprimir</button>
+	              <button class="ghost-button" id="pdfReceipt" type="button">Guardar PDF</button>
+	            </div>
+          </div>
+          <div id="receiptContent"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h3>Últimas reposiciones</h3>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Orden</th>
+                  <th>Producto</th>
+	                  <th>Cantidad</th>
+	                  <th>Costo</th>
+	                  <th>Estado</th>
+	                  <th>Vencimiento</th>
+	                  <th>Nota</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="purchasesTable"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+    </main>
+
+    <script src="./supabase-config.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
