@@ -83,7 +83,7 @@ let cloud = {
   enabled: false,
   ready: false,
   client: null,
-  currentUser: null,
+  companyPassword: "",
   saveTimer: null,
   remoteLoaded: false,
 };
@@ -124,12 +124,11 @@ const advisorForm = document.querySelector("#advisorForm");
 const advisorQuestion = document.querySelector("#advisorQuestion");
 const advisorChat = document.querySelector("#advisorChat");
 const loginScreen = document.querySelector("#loginScreen");
-const companySelect = document.querySelector("#companySelect");
+const companyName = document.querySelector("#companyName");
+const companySuggestions = document.querySelector("#companySuggestions");
 const companyPassword = document.querySelector("#companyPassword");
-const companyEmail = document.querySelector("#companyEmail");
 const newCompanyName = document.querySelector("#newCompanyName");
 const newCompanyPassword = document.querySelector("#newCompanyPassword");
-const newCompanyEmail = document.querySelector("#newCompanyEmail");
 
 saleDate.valueAsDate = new Date();
 purchaseDate.valueAsDate = new Date();
@@ -427,17 +426,30 @@ function saveCompanies(companies) {
 
 function renderCompanyOptions() {
   const companies = loadCompanies();
-  companySelect.innerHTML = companies
-    .map((company) => `<option value="${escapeHtml(company.id)}">${escapeHtml(company.name)}</option>`)
+  companySuggestions.innerHTML = companies
+    .map((company) => `<option value="${escapeHtml(company.name)}"></option>`)
     .join("");
 }
 
 async function loginCompany() {
-  if (isSupabaseEnabled() && companyEmail.value.trim()) {
+  const name = companyName.value.trim();
+  const password = companyPassword.value;
+
+  if (!name || !password) {
+    alert("Ingresá nombre de empresa y contraseña.");
+    return;
+  }
+
+  if (isSupabaseEnabled()) {
     try {
-      const user = await signInCloudUser(companyEmail.value.trim(), companyPassword.value);
-      const company = { id: user.id, name: companyEmail.value.trim(), password: "" };
-      enterCompany(company);
+      const remoteCompany = await loginCloudCompany(name, password);
+      cloud.companyPassword = password;
+      enterCompany(
+        { id: remoteCompany.id, name: remoteCompany.name, password: "" },
+        remoteCompany.state || emptyState(),
+        { skipCloudLoad: true }
+      );
+      setCloudStatus("Sincronizado", "Datos cargados desde Supabase.");
       return;
     } catch (error) {
       alert(`No se pudo ingresar con Supabase: ${error.message}`);
@@ -446,8 +458,8 @@ async function loginCompany() {
   }
 
   const companies = loadCompanies();
-  const company = companies.find((item) => item.id === companySelect.value);
-  if (!company || company.password !== companyPassword.value) {
+  const company = companies.find((item) => normalize(item.name) === normalize(name) || item.id === slugify(name));
+  if (!company || company.password !== password) {
     alert("Empresa o contraseña incorrecta.");
     return;
   }
@@ -462,15 +474,16 @@ async function createCompany() {
     return;
   }
 
-  if (isSupabaseEnabled() && newCompanyEmail.value.trim()) {
+  if (isSupabaseEnabled()) {
     try {
-      const user = await createCloudUser(newCompanyEmail.value.trim(), password);
-      const company = { id: user.id, name, password: "" };
-      const companies = loadCompanies().filter((item) => item.id !== company.id);
-      companies.push(company);
-      saveCompanies(companies);
-      renderCompanyOptions();
-      enterCompany(company);
+      const remoteCompany = await createCloudCompany(name, password);
+      cloud.companyPassword = password;
+      enterCompany(
+        { id: remoteCompany.id, name: remoteCompany.name, password: "" },
+        remoteCompany.state || emptyState(),
+        { skipCloudLoad: true }
+      );
+      setCloudStatus("Sincronizado", "Empresa creada en Supabase.");
       return;
     } catch (error) {
       alert(`No se pudo crear la empresa en Supabase: ${error.message}`);
@@ -492,11 +505,12 @@ async function createCompany() {
   enterCompany(company);
 }
 
-function enterCompany(company) {
+function enterCompany(company, initialState = null, options = {}) {
   currentCompany = company;
   storageKey = companyStorageKey(company.id);
   migrateLegacyDataIfNeeded();
-  state = loadState();
+  state = initialState ? migrateState(initialState) : loadState();
+  localStorage.setItem(storageKey, JSON.stringify(state));
   sessionStorage.setItem(activeCompanyKey, company.id);
   document.querySelector("#activeCompanyName").textContent = company.name;
   loginScreen.hidden = true;
@@ -504,22 +518,20 @@ function enterCompany(company) {
     element.hidden = false;
   });
   companyPassword.value = "";
+  companyName.value = "";
   newCompanyName.value = "";
   newCompanyPassword.value = "";
   render();
-  initCloudSync(company);
+  if (!options.skipCloudLoad) initCloudSync(company);
 }
 
 async function logoutCompany() {
   sessionStorage.removeItem(activeCompanyKey);
-  if (cloud.client && cloud.currentUser) {
-    await cloud.client.auth.signOut();
-  }
   currentCompany = null;
   storageKey = "";
   state = emptyState();
   cloud.remoteLoaded = false;
-  cloud.currentUser = null;
+  cloud.companyPassword = "";
   document.querySelectorAll(".app-protected").forEach((element) => {
     element.hidden = true;
   });
@@ -530,6 +542,13 @@ async function logoutCompany() {
 function initApp() {
   renderCompanyOptions();
   migrateLegacyDataIfNeeded();
+  if (isSupabaseConfigured()) {
+    setCloudStatus("Supabase activo", "Ingresá con empresa y contraseña.");
+    return;
+  }
+  if (window.supabaseConfig?.enabled) {
+    setCloudStatus("Modo local emergencia", "Faltan credenciales reales de Supabase.");
+  }
   const activeCompanyId = sessionStorage.getItem(activeCompanyKey);
   const company = loadCompanies().find((item) => item.id === activeCompanyId);
   if (company) {
@@ -551,97 +570,77 @@ function companyStorageKey(companyId) {
 }
 
 async function initCloudSync(company) {
-  if (!isSupabaseEnabled()) {
+  if (!isSupabaseConfigured()) {
     setCloudStatus("Modo local", "Los datos se guardan solo en este dispositivo.");
     return;
   }
 
-  try {
-    await ensureSupabase();
-    if (!cloud.currentUser) {
-      setCloudStatus("Modo local", "Ingresá con email nube para sincronizar Supabase.");
-      return;
-    }
-
-    setCloudStatus("Sincronizando", "Buscando datos en la nube.");
-    const { data, error } = await cloud.client
-      .from("companies")
-      .select("state")
-      .eq("id", company.id)
-      .maybeSingle();
-
-    if (error) throw error;
-
-    if (data?.state) {
-      state = migrateState(data.state || emptyState());
-      localStorage.setItem(storageKey, JSON.stringify(state));
-      cloud.remoteLoaded = true;
-      render();
-      setCloudStatus("Sincronizado", "Datos cargados desde Supabase.");
-    } else {
-      await saveCloudStateNow();
-      setCloudStatus("Sincronizado", "Empresa creada en Supabase.");
-    }
-  } catch (error) {
-    console.error(error);
-    setCloudStatus("Modo local", "No se pudo conectar con Supabase. Se mantiene guardado local.");
-  }
+  setCloudStatus("Supabase activo", "Ingresá nuevamente con contraseña para sincronizar.");
 }
 
 function isSupabaseEnabled() {
-  return Boolean(window.supabaseConfig?.enabled);
+  return isSupabaseConfigured();
+}
+
+function isSupabaseConfigured() {
+  const config = window.supabaseConfig;
+  if (!config?.enabled) return false;
+  if (!config.url || !config.anonKey) return false;
+  if (config.url.includes("TU_PROYECTO")) return false;
+  if (config.anonKey.includes("PEGAR")) return false;
+  return true;
 }
 
 async function ensureSupabase() {
   if (cloud.ready) return;
   const config = window.supabaseConfig;
   const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-  cloud.client = createClient(config.url, config.anonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-    },
-  });
-  const { data } = await cloud.client.auth.getUser();
-  cloud.currentUser = data.user || null;
+  cloud.client = createClient(config.url, config.anonKey);
   cloud.ready = true;
   cloud.enabled = true;
 }
 
-async function signInCloudUser(email, password) {
+async function loginCloudCompany(name, password) {
   await ensureSupabase();
-  const { data, error } = await cloud.client.auth.signInWithPassword({ email, password });
+  const { data, error } = await cloud.client.rpc("login_company", {
+    p_name: name,
+    p_password: password,
+  });
   if (error) throw error;
-  cloud.currentUser = data.user;
-  return data.user;
+  if (!data) throw new Error("Empresa o contraseña incorrecta.");
+  return data;
 }
 
-async function createCloudUser(email, password) {
+async function createCloudCompany(name, password) {
   await ensureSupabase();
-  const { data, error } = await cloud.client.auth.signUp({ email, password });
+  const { data, error } = await cloud.client.rpc("create_company", {
+    p_name: name,
+    p_password: password,
+    p_initial_state: emptyState(),
+  });
   if (error) throw error;
-  cloud.currentUser = data.user;
-  if (!cloud.currentUser) {
-    throw new Error("Revisá tu email para confirmar la cuenta y luego ingresá.");
-  }
-  return data.user;
+  if (!data) throw new Error("No se pudo crear la empresa.");
+  return data;
 }
 
 function queueCloudSave() {
-  if (!cloud.ready || !cloud.currentUser) return;
+  if (!cloud.ready || !cloud.companyPassword || !currentCompany) return;
   clearTimeout(cloud.saveTimer);
-  cloud.saveTimer = setTimeout(saveCloudStateNow, 600);
+  cloud.saveTimer = setTimeout(() => {
+    saveCloudStateNow().catch((error) => {
+      console.error(error);
+      setCloudStatus("Error Supabase", "No se pudieron guardar los cambios.");
+      alert(`No se pudieron guardar los cambios en Supabase: ${error.message}`);
+    });
+  }, 600);
 }
 
 async function saveCloudStateNow() {
-  if (!cloud.ready || !cloud.currentUser || !currentCompany) return;
-  const { error } = await cloud.client.from("companies").upsert({
-    id: currentCompany.id,
-    owner_id: cloud.currentUser.id,
-    name: currentCompany.name,
-    state,
-    updated_at: new Date().toISOString(),
+  if (!cloud.ready || !cloud.companyPassword || !currentCompany) return;
+  const { error } = await cloud.client.rpc("save_company_state", {
+    p_company_id: currentCompany.id,
+    p_password: cloud.companyPassword,
+    p_state: state,
   });
   if (error) throw error;
   setCloudStatus("Sincronizado", "Últimos cambios guardados en Supabase.");

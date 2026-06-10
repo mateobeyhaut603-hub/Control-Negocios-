@@ -16,15 +16,12 @@
         </div>
         <label>
           Empresa
-          <select id="companySelect"></select>
+          <input id="companyName" type="text" list="companySuggestions" placeholder="Nombre de la empresa" />
+          <datalist id="companySuggestions"></datalist>
         </label>
         <label>
           Contraseña
           <input id="companyPassword" type="password" placeholder="Contraseña" />
-        </label>
-        <label>
-          Email nube
-          <input id="companyEmail" type="email" placeholder="Opcional si usás Supabase" />
         </label>
         <button class="primary-button" id="loginCompany" type="button">Ingresar</button>
         <p class="helper-text">Demo inicial: empresa “Mi Negocio”, contraseña “1234”.</p>
@@ -37,10 +34,6 @@
         <label>
           Contraseña
           <input id="newCompanyPassword" type="password" placeholder="Nueva contraseña" />
-        </label>
-        <label>
-          Email nube
-          <input id="newCompanyEmail" type="email" placeholder="Opcional si usás Supabase" />
         </label>
         <button class="ghost-button" id="createCompany" type="button">Crear y entrar</button>
       </div>
