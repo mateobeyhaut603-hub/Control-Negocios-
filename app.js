@@ -83,6 +83,8 @@ let cloud = {
   enabled: false,
   ready: false,
   client: null,
+  url: "",
+  anonKey: "",
   companyPassword: "",
   saveTimer: null,
   remoteLoaded: false,
@@ -585,40 +587,55 @@ function isSupabaseEnabled() {
 function isSupabaseConfigured() {
   const config = window.supabaseConfig;
   if (!config?.enabled) return false;
-  if (!config.url || !config.anonKey) return false;
-  if (config.url.includes("TU_PROYECTO")) return false;
-  if (config.anonKey.includes("PEGAR")) return false;
+  const url = String(config.url || "");
+  const anonKey = String(config.anonKey || "");
+  if (!url || !anonKey) return false;
+  if (url.includes("TU_PROYECTO")) return false;
+  if (anonKey.includes("PEGAR")) return false;
   return true;
 }
 
 async function ensureSupabase() {
   if (cloud.ready) return;
   const config = window.supabaseConfig;
-  const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-  cloud.client = createClient(config.url, config.anonKey);
+  const supabaseUrl = normalizeSupabaseUrl(config.url);
+  const anonKey = String(config.anonKey || "").trim();
+  const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2?bundle");
+
+  cloud.url = supabaseUrl;
+  cloud.anonKey = anonKey;
+  cloud.client = createClient(supabaseUrl, anonKey, {
+    db: { schema: "public" },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+    global: {
+      headers: { "X-Client-Info": "control-negocio-app" },
+    },
+  });
   cloud.ready = true;
   cloud.enabled = true;
 }
 
 async function loginCloudCompany(name, password) {
   await ensureSupabase();
-  const { data, error } = await cloud.client.rpc("login_company", {
+  const data = await callSupabaseRpc("login_company", {
     p_name: name,
     p_password: password,
   });
-  if (error) throw error;
   if (!data) throw new Error("Empresa o contraseña incorrecta.");
   return data;
 }
 
 async function createCloudCompany(name, password) {
   await ensureSupabase();
-  const { data, error } = await cloud.client.rpc("create_company", {
+  const data = await callSupabaseRpc("create_company", {
     p_name: name,
     p_password: password,
     p_initial_state: emptyState(),
   });
-  if (error) throw error;
   if (!data) throw new Error("No se pudo crear la empresa.");
   return data;
 }
@@ -637,13 +654,79 @@ function queueCloudSave() {
 
 async function saveCloudStateNow() {
   if (!cloud.ready || !cloud.companyPassword || !currentCompany) return;
-  const { error } = await cloud.client.rpc("save_company_state", {
+  await callSupabaseRpc("save_company_state", {
     p_company_id: currentCompany.id,
     p_password: cloud.companyPassword,
     p_state: state,
   });
-  if (error) throw error;
   setCloudStatus("Sincronizado", "Últimos cambios guardados en Supabase.");
+}
+
+async function callSupabaseRpc(functionName, args) {
+  if (!/^[a-z_][a-z0-9_]*$/i.test(functionName)) {
+    throw new Error(`Función RPC inválida: ${functionName}`);
+  }
+
+  let response;
+  try {
+    response = await cloud.client.rpc(functionName, args);
+  } catch (error) {
+    if (!isInvalidPathError(error)) throw normalizeSupabaseError(error);
+    response = { error };
+  }
+
+  if (!response.error) return response.data;
+
+  if (!isInvalidPathError(response.error)) {
+    throw normalizeSupabaseError(response.error);
+  }
+
+  const fallbackResponse = await fetch(`${cloud.url}/rest/v1/rpc/${functionName}`, {
+    method: "POST",
+    headers: {
+      apikey: cloud.anonKey,
+      Authorization: `Bearer ${cloud.anonKey}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify(args),
+  });
+
+  const text = await fallbackResponse.text();
+  const payload = text ? JSON.parse(text) : null;
+
+  if (!fallbackResponse.ok) {
+    throw normalizeSupabaseError(payload || { message: fallbackResponse.statusText });
+  }
+
+  return payload;
+}
+
+function normalizeSupabaseUrl(value) {
+  const raw = String(value || "").trim().replace(/\/+$/, "");
+  if (!raw) throw new Error("Falta configurar Supabase URL.");
+
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error("Supabase URL inválida. Usá la Project URL, por ejemplo https://xxxx.supabase.co");
+  }
+
+  if (!parsed.hostname.endsWith(".supabase.co") && !parsed.hostname.includes("supabase")) {
+    throw new Error("Supabase URL inválida. Copiá la Project URL desde Supabase → Project Settings → API.");
+  }
+
+  return parsed.origin;
+}
+
+function isInvalidPathError(error) {
+  return normalize(error?.message || "").includes("invalid path specified");
+}
+
+function normalizeSupabaseError(error) {
+  const message = error?.message || error?.error_description || error?.hint || "Error desconocido de Supabase.";
+  return new Error(message);
 }
 
 function setCloudStatus(title, detail) {
