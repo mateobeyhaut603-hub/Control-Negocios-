@@ -21,6 +21,7 @@ create extension if not exists pgcrypto;
 drop function if exists public.login_company(text, text);
 drop function if exists public.create_company(text, text, jsonb);
 drop function if exists public.save_company_state(uuid, text, jsonb);
+drop function if exists public.list_companies();
 drop table if exists public.companies;
 
 create table public.companies (
@@ -100,6 +101,22 @@ begin
 end;
 $$;
 
+create or replace function public.list_companies()
+returns jsonb
+language sql
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object('id', id, 'name', name)
+      order by name
+    ),
+    '[]'::jsonb
+  )
+  from public.companies;
+$$;
+
 create or replace function public.save_company_state(
   p_company_id uuid,
   p_password text,
@@ -134,7 +151,28 @@ $$;
 
 grant execute on function public.create_company(text, text, jsonb) to anon, authenticated;
 grant execute on function public.login_company(text, text) to anon, authenticated;
+grant execute on function public.list_companies() to anon, authenticated;
 grant execute on function public.save_company_state(uuid, text, jsonb) to anon, authenticated;
+
+insert into public.companies (name, name_key, password_hash, state)
+values (
+  'Mi Negocio',
+  'mi negocio',
+  crypt('1234', gen_salt('bf')),
+  '{
+    "products": [
+      {"sku":"SKU-001","name":"Notebook Pro 14","cost":780,"price":1190,"stock":18,"minStock":6,"idealStock":24,"supplier":"TecnoMayor"},
+      {"sku":"SKU-002","name":"Monitor 27","cost":165,"price":279,"stock":24,"minStock":8,"idealStock":30,"supplier":"DisplayHub"},
+      {"sku":"SKU-003","name":"Teclado mecanico","cost":38,"price":75,"stock":35,"minStock":12,"idealStock":50,"supplier":"KeySource"},
+      {"sku":"SKU-010","name":"Switch 8 puertos","cost":41,"price":89,"stock":7,"minStock":5,"idealStock":20,"supplier":"NetLine"}
+    ],
+    "sales": [],
+    "purchases": [],
+    "expenses": [],
+    "cashSessions": []
+  }'::jsonb
+)
+on conflict (name_key) do nothing;
 ```
 
 ## 2. Configurar Supabase en la app
@@ -150,6 +188,7 @@ window.supabaseConfig = {
 ```
 
 Los datos salen de `Project Settings → API` en Supabase.
+Usá la `Project URL` base, por ejemplo `https://abcd.supabase.co`; no pegues una URL con `/rest/v1` ni rutas adicionales.
 
 ## 3. Publicar en GitHub Pages
 
@@ -165,9 +204,15 @@ Después activá GitHub Pages desde `Settings → Pages`.
 ## 4. Uso en varios dispositivos
 
 1. Abrí la URL de GitHub Pages.
-2. Creá la empresa con nombre + contraseña.
-3. En otro dispositivo ingresá con el mismo nombre + contraseña.
-4. Todos ven y editan los mismos datos sincronizados.
+2. Elegí la empresa desde el desplegable.
+3. Ingresá la contraseña.
+4. Si necesitás una nueva empresa, creala desde el formulario.
+5. En otro dispositivo, elegí la misma empresa e ingresá la misma contraseña.
+
+Demo incluida si ejecutás el SQL completo:
+
+- Empresa: `Mi Negocio`
+- Contraseña: `1234`
 
 ## Nota de seguridad
 

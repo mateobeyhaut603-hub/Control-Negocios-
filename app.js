@@ -126,8 +126,7 @@ const advisorForm = document.querySelector("#advisorForm");
 const advisorQuestion = document.querySelector("#advisorQuestion");
 const advisorChat = document.querySelector("#advisorChat");
 const loginScreen = document.querySelector("#loginScreen");
-const companyName = document.querySelector("#companyName");
-const companySuggestions = document.querySelector("#companySuggestions");
+const companySelect = document.querySelector("#companySelect");
 const companyPassword = document.querySelector("#companyPassword");
 const newCompanyName = document.querySelector("#newCompanyName");
 const newCompanyPassword = document.querySelector("#newCompanyPassword");
@@ -426,15 +425,33 @@ function saveCompanies(companies) {
   localStorage.setItem(companiesKey, JSON.stringify(companies));
 }
 
-function renderCompanyOptions() {
+async function renderCompanyOptions() {
+  if (isSupabaseConfigured()) {
+    companySelect.innerHTML = `<option value="">Cargando empresas...</option>`;
+    try {
+      const companies = await listCloudCompanies();
+      saveCompanies(companies.map((company) => ({ ...company, password: "" })));
+      companySelect.innerHTML =
+        `<option value="">Seleccionar empresa</option>` +
+        companies.map((company) => `<option value="${escapeHtml(company.name)}">${escapeHtml(company.name)}</option>`).join("");
+      setCloudStatus("Supabase activo", `${companies.length} empresa(s) disponibles.`);
+      return;
+    } catch (error) {
+      companySelect.innerHTML = `<option value="">Error al cargar empresas</option>`;
+      setCloudStatus("Error Supabase", "No se pudo cargar el listado de empresas.");
+      alert(`No se pudieron cargar las empresas desde Supabase: ${error.message}`);
+      return;
+    }
+  }
+
   const companies = loadCompanies();
-  companySuggestions.innerHTML = companies
-    .map((company) => `<option value="${escapeHtml(company.name)}"></option>`)
-    .join("");
+  companySelect.innerHTML =
+    `<option value="">Seleccionar empresa</option>` +
+    companies.map((company) => `<option value="${escapeHtml(company.name)}">${escapeHtml(company.name)}</option>`).join("");
 }
 
 async function loginCompany() {
-  const name = companyName.value.trim();
+  const name = companySelect.value.trim();
   const password = companyPassword.value;
 
   if (!name || !password) {
@@ -480,6 +497,7 @@ async function createCompany() {
     try {
       const remoteCompany = await createCloudCompany(name, password);
       cloud.companyPassword = password;
+      await renderCompanyOptions();
       enterCompany(
         { id: remoteCompany.id, name: remoteCompany.name, password: "" },
         remoteCompany.state || emptyState(),
@@ -520,7 +538,7 @@ function enterCompany(company, initialState = null, options = {}) {
     element.hidden = false;
   });
   companyPassword.value = "";
-  companyName.value = "";
+  companySelect.value = "";
   newCompanyName.value = "";
   newCompanyPassword.value = "";
   render();
@@ -541,8 +559,8 @@ async function logoutCompany() {
   renderCompanyOptions();
 }
 
-function initApp() {
-  renderCompanyOptions();
+async function initApp() {
+  await renderCompanyOptions();
   migrateLegacyDataIfNeeded();
   if (isSupabaseConfigured()) {
     setCloudStatus("Supabase activo", "Ingresá con empresa y contraseña.");
@@ -627,6 +645,12 @@ async function loginCloudCompany(name, password) {
   });
   if (!data) throw new Error("Empresa o contraseña incorrecta.");
   return data;
+}
+
+async function listCloudCompanies() {
+  await ensureSupabase();
+  const data = await callSupabaseRpc("list_companies", {});
+  return Array.isArray(data) ? data : [];
 }
 
 async function createCloudCompany(name, password) {
