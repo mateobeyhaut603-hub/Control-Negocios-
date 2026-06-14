@@ -50,10 +50,6 @@
         <span>Empresa</span>
         <strong id="activeCompanyName">Sin empresa</strong>
       </div>
-      <div class="session-card" id="cloudStatus">
-        <span>Modo local</span>
-        <strong>Sin Supabase configurado</strong>
-      </div>
       <nav class="nav" aria-label="Secciones">
         <button class="nav-button active" data-view="dashboard">Dashboard</button>
         <button class="nav-button" data-view="financiero">Finanzas</button>
@@ -686,6 +682,20 @@
             <input id="expenseAmount" name="amount" type="number" min="0" step="0.01" required />
           </label>
           <label>
+            Frecuencia
+            <select id="expenseRecurrence" name="recurrence">
+              <option value="once">Una sola vez</option>
+              <option value="weekly">Semanal</option>
+              <option value="monthly">Mensual</option>
+              <option value="quarterly">Trimestral</option>
+              <option value="yearly">Anual</option>
+            </select>
+          </label>
+          <label>
+            Repetir hasta
+            <input id="expenseRecurrenceEnd" name="recurrenceEnd" type="date" />
+          </label>
+          <label>
             Método de pago
             <select id="expensePaymentMethod" name="paymentMethod">
               <option value="Efectivo">Efectivo</option>
@@ -714,6 +724,7 @@
                   <th>Tipo</th>
                   <th>Descripción</th>
                   <th>Monto</th>
+                  <th>Frecuencia</th>
                   <th>Acciones</th>
                 </tr>
               </thead>

@@ -330,6 +330,8 @@ expenseForm.addEventListener("submit", (event) => {
     type: String(form.get("type")),
     description: String(form.get("description")).trim(),
     amount: Number(form.get("amount")),
+    recurrence: String(form.get("recurrence") || "once"),
+    recurrenceEnd: String(form.get("recurrenceEnd") || ""),
     paymentMethod: String(form.get("paymentMethod")),
   };
 
@@ -775,6 +777,8 @@ function migrateState(parsed) {
       id: expense.id || makeId(),
       category: expense.category || "Otro",
       type: expense.type || "Variable",
+      recurrence: expense.recurrence || "once",
+      recurrenceEnd: expense.recurrenceEnd || "",
       paymentMethod: expense.paymentMethod || "Efectivo",
     })),
     cashSessions: (parsed.cashSessions || []).map((cash) => ({ ...cash, id: cash.id || makeId() })),
@@ -1091,6 +1095,12 @@ function requiredSalesForExpense(expenseAmount, grossRate) {
   return expenseAmount / grossRate;
 }
 
+function projectedExpenseTotal(days) {
+  const from = todayIso();
+  const to = addDays(from, Math.max(days - 1, 0));
+  return expandExpensesInRange(state.expenses, from, to).reduce((sum, expense) => sum + expense.amount, 0);
+}
+
 function buildBusinessAnalysis(sales, expenses, purchases, projectionDayCount = 30) {
   const revenue = sales.reduce((sum, sale) => sum + sale.total, 0);
   const collected = sales.reduce((sum, sale) => sum + sale.paidAmount, 0);
@@ -1107,7 +1117,7 @@ function buildBusinessAnalysis(sales, expenses, purchases, projectionDayCount = 
   const dailyExpenseAverage = expensesTotal / days;
   const dailyPurchaseAverage = purchaseTotal / days;
   const projectedIncome = dailyCollectedAverage * projectionDayCount;
-  const projectedExpenses = dailyExpenseAverage * projectionDayCount;
+  const projectedExpenses = projectedExpenseTotal(projectionDayCount);
   const projectedPurchases = dailyPurchaseAverage * projectionDayCount;
   const cashBalance = collected - expensesTotal - purchaseTotal;
   const projectedCash = cashBalance + projectedIncome - projectedExpenses - projectedPurchases;
@@ -1411,13 +1421,14 @@ function renderExpenses() {
           <td><span class="tag ${expense.type === "Fijo" ? "warn" : "ok"}">${escapeHtml(expense.type)}</span></td>
           <td>${escapeHtml(expense.description)}</td>
           <td>${currency.format(expense.amount)}</td>
+          <td>${escapeHtml(recurrenceLabel(expense))}</td>
           <td class="actions-cell">
             <button class="table-action" data-action="edit-expense" data-id="${escapeHtml(expense.id)}" type="button">Editar</button>
             <button class="table-action danger-action" data-action="delete-expense" data-id="${escapeHtml(expense.id)}" type="button">Eliminar</button>
           </td>
         </tr>
       `)
-      .join("") || `<tr><td class="empty" colspan="6">Todavía no hay gastos registrados.</td></tr>`;
+      .join("") || `<tr><td class="empty" colspan="7">Todavía no hay gastos registrados.</td></tr>`;
 }
 
 function renderCashSessions() {
@@ -1587,6 +1598,8 @@ function editExpense(id) {
   document.querySelector("#expenseType").value = expense.type;
   document.querySelector("#expenseDescription").value = expense.description;
   document.querySelector("#expenseAmount").value = expense.amount;
+  document.querySelector("#expenseRecurrence").value = expense.recurrence || "once";
+  document.querySelector("#expenseRecurrenceEnd").value = expense.recurrenceEnd || "";
   document.querySelector("#expensePaymentMethod").value = expense.paymentMethod;
   document.querySelector("#expenseSubmit").textContent = "Actualizar gasto";
   document.querySelector("#cancelExpenseEdit").hidden = false;
@@ -1693,7 +1706,8 @@ function filteredPurchases() {
 }
 
 function filteredExpenses() {
-  return state.expenses.filter((expense) => isInDateRange(expense.date));
+  if (!filterFrom.value && !filterTo.value) return state.expenses;
+  return expandExpensesInRange(state.expenses, filterFrom.value, filterTo.value);
 }
 
 function filteredCashSessions() {
@@ -1710,6 +1724,90 @@ function isInCustomDateRange(date, from, to) {
   if (from && date < from) return false;
   if (to && date > to) return false;
   return true;
+}
+
+function customFilteredExpenses(from, to) {
+  if (!from && !to) return state.expenses;
+  return expandExpensesInRange(state.expenses, from, to);
+}
+
+function expandExpensesInRange(expenses, from, to) {
+  const fallbackFrom = from || earliestDate(expenses.map((expense) => expense.date)) || todayIso();
+  const fallbackTo = to || todayIso();
+  return expenses.flatMap((expense) => expandExpenseOccurrences(expense, fallbackFrom, fallbackTo));
+}
+
+function expandExpenseOccurrences(expense, from, to) {
+  if (!expense.date || expense.date > to) return [];
+  if (expense.recurrence === "once" || !expense.recurrence) {
+    return isInCustomDateRange(expense.date, from, to) ? [expense] : [];
+  }
+
+  const occurrences = [];
+  let currentDate = expense.date;
+  const endDate = expense.recurrenceEnd && expense.recurrenceEnd < to ? expense.recurrenceEnd : to;
+
+  while (currentDate <= endDate) {
+    if (currentDate >= from) {
+      occurrences.push({ ...expense, date: currentDate, sourceDate: expense.date, occurrence: true });
+    }
+    currentDate = nextExpenseDate(currentDate, expense.recurrence);
+    if (!currentDate) break;
+  }
+
+  return occurrences;
+}
+
+function nextExpenseDate(date, recurrence) {
+  if (recurrence === "weekly") return addDays(date, 7);
+  if (recurrence === "monthly") return addMonths(date, 1);
+  if (recurrence === "quarterly") return addMonths(date, 3);
+  if (recurrence === "yearly") return addMonths(date, 12);
+  return "";
+}
+
+function addDays(date, days) {
+  const next = parseLocalDate(date);
+  next.setDate(next.getDate() + days);
+  return toIsoDate(next);
+}
+
+function addMonths(date, months) {
+  const original = parseLocalDate(date);
+  const day = original.getDate();
+  const next = new Date(original.getFullYear(), original.getMonth() + months, 1);
+  const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+  next.setDate(Math.min(day, lastDay));
+  return toIsoDate(next);
+}
+
+function parseLocalDate(date) {
+  const [year, month, day] = String(date).split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function toIsoDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function todayIso() {
+  return toIsoDate(new Date());
+}
+
+function earliestDate(dates) {
+  return dates.filter(Boolean).sort()[0] || "";
+}
+
+function recurrenceLabel(expense) {
+  const labels = {
+    once: "Una sola vez",
+    weekly: "Semanal",
+    monthly: "Mensual",
+    quarterly: "Trimestral",
+    yearly: "Anual",
+  };
+  const label = labels[expense.recurrence || "once"] || "Una sola vez";
+  return expense.recurrenceEnd ? `${label} hasta ${expense.recurrenceEnd}` : label;
 }
 
 function summarizeCustomers(sales) {
@@ -1816,8 +1914,7 @@ function getCashSummary(date) {
   const income = state.sales
     .filter((sale) => sale.date === date)
     .reduce((sum, sale) => sum + sale.paidAmount, 0);
-  const expenses = state.expenses
-    .filter((expense) => expense.date === date)
+  const expenses = expandExpensesInRange(state.expenses, date, date)
     .reduce((sum, expense) => sum + expense.amount, 0);
   const purchases = state.purchases
     .filter((purchase) => purchase.date === date)
@@ -1899,7 +1996,7 @@ function exportExcel() {
 function buildExcelDatasets(type, from, to) {
   const sales = state.sales.filter((sale) => isInCustomDateRange(sale.date, from, to));
   const purchases = state.purchases.filter((purchase) => isInCustomDateRange(purchase.date, from, to));
-  const expenses = state.expenses.filter((expense) => isInCustomDateRange(expense.date, from, to));
+  const expenses = customFilteredExpenses(from, to);
   const cashSessions = state.cashSessions.filter((cash) => isInCustomDateRange(cash.date, from, to));
   const inventoryRows = state.products.map((product) => ({
     Producto: product.name,
@@ -1949,6 +2046,8 @@ function buildExcelDatasets(type, from, to) {
     Tipo: expense.type,
     Descripcion: expense.description,
     Monto: expense.amount,
+    Frecuencia: recurrenceLabel(expense),
+    "Fecha original": expense.sourceDate || expense.date,
     "Metodo de pago": expense.paymentMethod,
   }));
   const cashRows = cashSessions.map((cash) => {
