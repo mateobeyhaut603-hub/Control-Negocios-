@@ -1,75 +1,157 @@
 const companiesKey = "business-erp-companies-v1";
 const activeCompanyKey = "business-erp-active-company";
 const legacyStorageKey = "business-erp-v1";
+const seedDataVersionKey = "business-erp-mi-negocio-seed-version";
+const seedDataVersion = "2026-06-14-demo-3p-5v-2g";
 
 const seedData = {
   products: [
     {
       sku: "SKU-001",
-      name: "Notebook Pro 14",
-      cost: 780,
-      price: 1190,
-      stock: 18,
-      minStock: 6,
-      idealStock: 24,
-      supplier: "TecnoMayor",
+      name: "Café molido 500g",
+      cost: 180,
+      price: 290,
+      stock: 32,
+      minStock: 10,
+      idealStock: 50,
+      supplier: "Distribuidora Central",
     },
     {
       sku: "SKU-002",
-      name: "Monitor 27",
-      cost: 165,
-      price: 279,
-      stock: 24,
-      minStock: 8,
-      idealStock: 30,
-      supplier: "DisplayHub",
+      name: "Yerba premium 1kg",
+      cost: 130,
+      price: 220,
+      stock: 31,
+      minStock: 12,
+      idealStock: 45,
+      supplier: "Proveedor del Sur",
     },
     {
       sku: "SKU-003",
-      name: "Teclado mecanico",
-      cost: 38,
-      price: 75,
-      stock: 35,
-      minStock: 12,
-      idealStock: 50,
-      supplier: "KeySource",
-    },
-    {
-      sku: "SKU-010",
-      name: "Switch 8 puertos",
-      cost: 41,
-      price: 89,
-      stock: 7,
+      name: "Botella térmica 1L",
+      cost: 450,
+      price: 790,
+      stock: 17,
       minStock: 5,
-      idealStock: 20,
-      supplier: "NetLine",
+      idealStock: 25,
+      supplier: "Importadora Norte",
     },
   ],
   sales: [
     {
       id: makeId(),
-      date: "2026-06-08",
-      receipt: "F-0010",
+      date: "2026-06-14",
+      receipt: "F-0005",
+      customer: "Empresa Delta",
+      sku: "SKU-003",
+      quantity: 1,
+      discount: 0,
+      paymentMethod: "Transferencia",
+      paymentStatus: "Pagada",
+      paidAmount: 790,
+      dueDate: "",
+      unitPrice: 790,
+      total: 790,
+      cost: 450,
+      margin: 340,
+      debt: 0,
+    },
+    {
+      id: makeId(),
+      date: "2026-06-13",
+      receipt: "F-0004",
+      customer: "Almacén La Esquina",
+      sku: "SKU-002",
+      quantity: 4,
+      discount: 0,
+      paymentMethod: "Transferencia",
+      paymentStatus: "Parcial",
+      paidAmount: 500,
+      dueDate: "2026-06-20",
+      unitPrice: 220,
+      total: 880,
+      cost: 520,
+      margin: 360,
+      debt: 380,
+    },
+    {
+      id: makeId(),
+      date: "2026-06-12",
+      receipt: "F-0003",
       customer: "Mostrador",
-      sku: "SKU-010",
+      sku: "SKU-001",
+      quantity: 2,
+      discount: 10,
+      paymentMethod: "Mercado Pago",
+      paymentStatus: "Pagada",
+      paidAmount: 522,
+      dueDate: "",
+      unitPrice: 261,
+      total: 522,
+      cost: 360,
+      margin: 162,
+      debt: 0,
+    },
+    {
+      id: makeId(),
+      date: "2026-06-11",
+      receipt: "F-0002",
+      customer: "Cliente Mayorista",
+      sku: "SKU-003",
       quantity: 2,
       discount: 0,
-      unitPrice: 89,
-      total: 178,
-      cost: 82,
-      margin: 96,
+      paymentMethod: "Tarjeta",
+      paymentStatus: "Pagada",
+      paidAmount: 1580,
+      dueDate: "",
+      unitPrice: 790,
+      total: 1580,
+      cost: 900,
+      margin: 680,
+      debt: 0,
+    },
+    {
+      id: makeId(),
+      date: "2026-06-10",
+      receipt: "F-0001",
+      customer: "Mostrador",
+      sku: "SKU-001",
+      quantity: 6,
+      discount: 0,
+      paymentMethod: "Efectivo",
+      paymentStatus: "Pagada",
+      paidAmount: 1740,
+      dueDate: "",
+      unitPrice: 290,
+      total: 1740,
+      cost: 1080,
+      margin: 660,
+      debt: 0,
     },
   ],
   purchases: [],
   expenses: [
     {
       id: makeId(),
-      date: "2026-06-08",
-      category: "Publicidad",
+      date: "2026-06-01",
+      category: "Alquiler",
+      type: "Fijo",
+      description: "Alquiler del local",
+      amount: 600,
+      paymentMethod: "Transferencia",
+      recurrence: "monthly",
+      recurrenceEnd: "",
+    },
+    {
+      id: makeId(),
+      date: "2026-06-11",
+      category: "Envíos",
       type: "Variable",
-      description: "Campaña redes",
-      amount: 120,
-      paymentMethod: "Tarjeta",
+      description: "Cadetería y entregas",
+      amount: 85,
+      paymentMethod: "Efectivo",
+      recurrence: "once",
+      recurrenceEnd: "",
     },
   ],
   cashSessions: [],
@@ -140,11 +222,6 @@ viewButtons.forEach((button) => {
   button.addEventListener("click", () => showView(button.dataset.view));
 });
 
-document.querySelector("#resetData").addEventListener("click", () => {
-  Object.assign(state, structuredClone(seedData));
-  saveState();
-  location.reload();
-});
 document.querySelector("#loginCompany").addEventListener("click", loginCompany);
 document.querySelector("#createCompany").addEventListener("click", createCompany);
 document.querySelector("#logoutCompany").addEventListener("click", logoutCompany);
@@ -399,9 +476,11 @@ document.addEventListener("click", (event) => {
 
 function loadState() {
   const saved = localStorage.getItem(storageKey) || localStorage.getItem(legacyStorageKey);
-  const parsed = saved ? JSON.parse(saved) : currentCompany?.id === "mi-negocio" ? structuredClone(seedData) : emptyState();
+  const shouldRefreshSeed = currentCompany?.id === "mi-negocio" && localStorage.getItem(seedDataVersionKey) !== seedDataVersion;
+  const parsed = shouldRefreshSeed ? structuredClone(seedData) : saved ? JSON.parse(saved) : currentCompany?.id === "mi-negocio" ? structuredClone(seedData) : emptyState();
   const migrated = migrateState(parsed);
   localStorage.setItem(storageKey, JSON.stringify(migrated));
+  if (currentCompany?.id === "mi-negocio") localStorage.setItem(seedDataVersionKey, seedDataVersion);
   return migrated;
 }
 
@@ -1050,9 +1129,10 @@ function appendAdvisorMessage(message, sender) {
 function buildAdvisorAnswer(question, analysis) {
   const query = normalize(question);
   const context = businessContextText(analysis);
+  const requestedAmount = extractAmount(question);
 
   if (query.includes("publicidad") || query.includes("marketing") || query.includes("gastar") || query.includes("invertir")) {
-    return `${context}\n\nPara decidir si conviene gastar, usá esta regla: el gasto debería generar margen bruto adicional mayor al gasto. Con tu margen actual de ${Math.round(analysis.grossRate * 100)}%, un gasto de ${extractAmount(question) ? currency.format(extractAmount(question)) : "ese monto"} necesita ventas adicionales aproximadas de ${currency.format(requiredSalesForExpense(extractAmount(question) || analysis.dailyBreakEvenTarget, analysis.grossRate))} para pagarse solo. Si tu caja proyectada queda negativa, no lo haría salvo que sea una acción con retorno muy claro y medible.`;
+    return `${context}\n\nPara decidir si conviene gastar, usá esta regla: el gasto debería generar margen bruto adicional mayor al gasto. Con tu margen actual de ${Math.round(analysis.grossRate * 100)}%, un gasto de ${requestedAmount ? currency.format(requestedAmount) : "ese monto"} necesita ventas adicionales aproximadas de ${currency.format(requiredSalesForExpense(requestedAmount || analysis.dailyBreakEvenTarget, analysis.grossRate))} para pagarse solo. Si tu caja proyectada queda negativa, no lo haría salvo que sea una acción con retorno claro y medible.`;
   }
 
   if (query.includes("objetivo") || query.includes("llegar") || query.includes("meta") || query.includes("cubrir")) {
@@ -1082,7 +1162,7 @@ function buildAdvisorAnswer(question, analysis) {
 }
 
 function businessContextText(analysis) {
-  return `Con los datos cargados: ventas ${currency.format(analysis.revenue)}, cobrado ${currency.format(analysis.collected)}, gastos ${currency.format(analysis.expensesTotal)}, utilidad neta ${currency.format(analysis.netProfit)} y caja proyectada ${currency.format(analysis.projectedCash)} a ${number.format(analysis.projectionDayCount)} días.`;
+  return `Base usada: ${number.format(analysis.salesCount)} venta(s), ${number.format(analysis.expenseCount)} gasto(s) y ${number.format(analysis.purchaseCount)} compra(s) registradas en el período visible. Ventas ${currency.format(analysis.revenue)}, cobrado ${currency.format(analysis.collected)}, deuda ${currency.format(analysis.debtTotal)}, gastos ${currency.format(analysis.expensesTotal)}, utilidad neta ${currency.format(analysis.netProfit)} y caja proyectada ${currency.format(analysis.projectedCash)} a ${number.format(analysis.projectionDayCount)} días.`;
 }
 
 function extractAmount(text) {
@@ -1127,6 +1207,9 @@ function buildBusinessAnalysis(sales, expenses, purchases, projectionDayCount = 
 
   return {
     revenue,
+    salesCount: sales.length,
+    expenseCount: expenses.length,
+    purchaseCount: purchases.length,
     collected,
     debtTotal,
     grossProfit,
@@ -1265,7 +1348,7 @@ function financialInsights(analysis) {
   insights.push({
     level: "info",
     title: "Meta de caja",
-    text: `Para sostener el negocio deberías cobrar al menos ${currency.format(analysis.dailyBreakEvenTarget)} por día en ventas con el margen actual.`,
+    text: `Para cubrir los gastos del período visible, deberías vender al menos ${currency.format(analysis.dailyBreakEvenTarget)} por día durante ${number.format(analysis.projectionDayCount)} días con el margen actual.`,
   });
 
   return insights;
@@ -1309,7 +1392,7 @@ function profitabilityInsights(analysis) {
   insights.push({
     level: "info",
     title: "Cantidad sugerida a vender",
-    text: `Con el ticket y margen actuales, el punto de equilibrio equivale a unas ${number.format(analysis.unitsToBreakEven)} unidades en 30 días.`,
+    text: `Con el ticket y margen actuales, el punto de equilibrio equivale a unas ${number.format(analysis.unitsToBreakEven)} unidades en el período visible.`,
   });
 
   return insights;
