@@ -1131,6 +1131,10 @@ function buildAdvisorAnswer(question, analysis) {
   const context = businessContextText(analysis);
   const requestedAmount = extractAmount(question);
 
+  if (hasInsufficientAdvisorData(analysis, query)) {
+    return insufficientAdvisorDataText(analysis, query);
+  }
+
   if (query.includes("publicidad") || query.includes("marketing") || query.includes("gastar") || query.includes("invertir")) {
     return `${context}\n\nPara decidir si conviene gastar, usá esta regla: el gasto debería generar margen bruto adicional mayor al gasto. Con tu margen actual de ${Math.round(analysis.grossRate * 100)}%, un gasto de ${requestedAmount ? currency.format(requestedAmount) : "ese monto"} necesita ventas adicionales aproximadas de ${currency.format(requiredSalesForExpense(requestedAmount || analysis.dailyBreakEvenTarget, analysis.grossRate))} para pagarse solo. Si tu caja proyectada queda negativa, no lo haría salvo que sea una acción con retorno claro y medible.`;
   }
@@ -1162,7 +1166,30 @@ function buildAdvisorAnswer(question, analysis) {
 }
 
 function businessContextText(analysis) {
-  return `Base usada: ${number.format(analysis.salesCount)} venta(s), ${number.format(analysis.expenseCount)} gasto(s) y ${number.format(analysis.purchaseCount)} compra(s) registradas en el período visible. Ventas ${currency.format(analysis.revenue)}, cobrado ${currency.format(analysis.collected)}, deuda ${currency.format(analysis.debtTotal)}, gastos ${currency.format(analysis.expensesTotal)}, utilidad neta ${currency.format(analysis.netProfit)} y caja proyectada ${currency.format(analysis.projectedCash)} a ${number.format(analysis.projectionDayCount)} días.`;
+  return `Base usada: ${number.format(analysis.productCount)} producto(s), ${number.format(analysis.salesCount)} venta(s), ${number.format(analysis.expenseCount)} gasto(s) y ${number.format(analysis.purchaseCount)} compra(s) registradas en el período visible. Ventas ${currency.format(analysis.revenue)}, cobrado ${currency.format(analysis.collected)}, deuda ${currency.format(analysis.debtTotal)}, gastos ${currency.format(analysis.expensesTotal)}, utilidad neta ${currency.format(analysis.netProfit)} y caja proyectada ${currency.format(analysis.projectedCash)} a ${number.format(analysis.projectionDayCount)} días.`;
+}
+
+function hasInsufficientAdvisorData(analysis, query) {
+  const hasAnyData = analysis.productCount || analysis.salesCount || analysis.expenseCount || analysis.purchaseCount;
+  if (!hasAnyData) return true;
+
+  const asksAboutStock = query.includes("stock") || query.includes("comprar") || query.includes("reposicion") || query.includes("reposición");
+  if (asksAboutStock) return analysis.productCount === 0;
+
+  return analysis.salesCount === 0;
+}
+
+function insufficientAdvisorDataText(analysis, query) {
+  const asksAboutStock = query.includes("stock") || query.includes("comprar") || query.includes("reposicion") || query.includes("reposición");
+  if (!analysis.productCount && !analysis.salesCount && !analysis.expenseCount && !analysis.purchaseCount) {
+    return "Necesitaría más datos para poder hacer una evaluación útil. Todavía no hay productos, ventas, gastos ni compras cargadas. Primero cargá algunos productos y registrá ventas o gastos reales; después puedo analizar caja, rentabilidad, stock, deuda y objetivos.";
+  }
+
+  if (asksAboutStock && !analysis.productCount) {
+    return "Necesitaría productos cargados para evaluar stock o reposición. Agregá productos con stock actual, stock mínimo e ideal, y después puedo decirte qué conviene reponer.";
+  }
+
+  return "Necesitaría más datos de ventas para poder hacer una evaluación financiera o económica confiable. Con la empresa vacía o sin ventas, cualquier recomendación sobre caja, margen, utilidad, objetivos o inversión sería poco confiable. Cargá algunas ventas reales, gastos y métodos de pago para poder analizar el negocio.";
 }
 
 function extractAmount(text) {
@@ -1207,6 +1234,7 @@ function buildBusinessAnalysis(sales, expenses, purchases, projectionDayCount = 
 
   return {
     revenue,
+    productCount: state.products.length,
     salesCount: sales.length,
     expenseCount: expenses.length,
     purchaseCount: purchases.length,
