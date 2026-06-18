@@ -612,11 +612,11 @@ async function deleteCompany() {
   const password = companyPassword.value;
 
   if (!name || !password) {
-    alert("Seleccioná una empresa e ingresá su contraseña para poder borrarla.");
+    alert("Seleccioná una empresa e ingresá su contraseña para poder eliminarla.");
     return;
   }
 
-  const confirmed = confirm(`¿Estás seguro de querer borrar la empresa "${name}"? Esta acción elimina todos sus datos y no se puede deshacer.`);
+  const confirmed = confirm(`¿Estás seguro de querer eliminar la empresa "${name}"? Esta acción elimina todos sus datos y no se puede deshacer.`);
   if (!confirmed) return;
 
   if (isSupabaseEnabled()) {
@@ -630,10 +630,10 @@ async function deleteCompany() {
       }
       companyPassword.value = "";
       await renderCompanyOptions();
-      alert("Empresa borrada correctamente.");
+      alert("Empresa eliminada correctamente.");
       return;
     } catch (error) {
-      alert(`No se pudo borrar la empresa en Supabase: ${error.message}`);
+      alert(`No se pudo eliminar la empresa en Supabase: ${error.message}`);
       return;
     }
   }
@@ -650,7 +650,7 @@ async function deleteCompany() {
   sessionStorage.removeItem(activeCompanyKey);
   companyPassword.value = "";
   renderCompanyOptions();
-  alert("Empresa borrada correctamente.");
+  alert("Empresa eliminada correctamente.");
 }
 
 function enterCompany(company, initialState = null, options = {}) {
@@ -798,7 +798,7 @@ async function deleteCloudCompany(name, password) {
     p_name: name,
     p_password: password,
   });
-  if (!data?.ok) throw new Error("No se pudo borrar la empresa.");
+  if (!data?.ok) throw new Error("No se pudo eliminar la empresa.");
   return data;
 }
 
