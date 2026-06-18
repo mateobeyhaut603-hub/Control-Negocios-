@@ -224,6 +224,7 @@ viewButtons.forEach((button) => {
 
 document.querySelector("#loginCompany").addEventListener("click", loginCompany);
 document.querySelector("#createCompany").addEventListener("click", createCompany);
+document.querySelector("#deleteCompany").addEventListener("click", deleteCompany);
 document.querySelector("#logoutCompany").addEventListener("click", logoutCompany);
 companyPassword.addEventListener("keydown", (event) => {
   if (event.key === "Enter") loginCompany();
@@ -606,6 +607,52 @@ async function createCompany() {
   enterCompany(company);
 }
 
+async function deleteCompany() {
+  const name = companySelect.value.trim();
+  const password = companyPassword.value;
+
+  if (!name || !password) {
+    alert("Seleccioná una empresa e ingresá su contraseña para poder borrarla.");
+    return;
+  }
+
+  const confirmed = confirm(`¿Estás seguro de querer borrar la empresa "${name}"? Esta acción elimina todos sus datos y no se puede deshacer.`);
+  if (!confirmed) return;
+
+  if (isSupabaseEnabled()) {
+    try {
+      await deleteCloudCompany(name, password);
+      if (currentCompany && normalize(currentCompany.name) === normalize(name)) {
+        sessionStorage.removeItem(activeCompanyKey);
+        currentCompany = null;
+        storageKey = "";
+        state = emptyState();
+      }
+      companyPassword.value = "";
+      await renderCompanyOptions();
+      alert("Empresa borrada correctamente.");
+      return;
+    } catch (error) {
+      alert(`No se pudo borrar la empresa en Supabase: ${error.message}`);
+      return;
+    }
+  }
+
+  const companies = loadCompanies();
+  const company = companies.find((item) => normalize(item.name) === normalize(name) || item.id === slugify(name));
+  if (!company || company.password !== password) {
+    alert("Empresa o contraseña incorrecta.");
+    return;
+  }
+
+  saveCompanies(companies.filter((item) => item.id !== company.id));
+  localStorage.removeItem(companyStorageKey(company.id));
+  sessionStorage.removeItem(activeCompanyKey);
+  companyPassword.value = "";
+  renderCompanyOptions();
+  alert("Empresa borrada correctamente.");
+}
+
 function enterCompany(company, initialState = null, options = {}) {
   currentCompany = company;
   storageKey = companyStorageKey(company.id);
@@ -742,6 +789,16 @@ async function createCloudCompany(name, password) {
     p_initial_state: emptyState(),
   });
   if (!data) throw new Error("No se pudo crear la empresa.");
+  return data;
+}
+
+async function deleteCloudCompany(name, password) {
+  await ensureSupabase();
+  const data = await callSupabaseRpc("delete_company", {
+    p_name: name,
+    p_password: password,
+  });
+  if (!data?.ok) throw new Error("No se pudo borrar la empresa.");
   return data;
 }
 

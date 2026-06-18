@@ -232,6 +232,15 @@ h3 {
   background: #dcece4;
 }
 
+.danger-button {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.danger-button:hover {
+  background: #ffe1dc;
+}
+
 .primary-button {
   color: #ffffff;
   background: linear-gradient(135deg, var(--brand), #105245);
